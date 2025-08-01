@@ -117,7 +117,6 @@
 
         // --- Event Listeners ---
 
-        // Load Audio File
         audioFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
@@ -126,7 +125,6 @@
             }
         });
 
-        // Use a div for display and a hidden textarea for input
         lyricsDisplay.addEventListener('click', () => {
             lyricsDisplay.classList.add('hidden');
             lyricsInput.classList.remove('hidden');
@@ -160,11 +158,9 @@
             updateLyricHighlights();
         }
 
-        // Tap to sync lyrics
         tapButton.addEventListener('click', tap);
         resetButton.addEventListener('click', resetTimings);
 
-        // Allow using spacebar to tap
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space' && document.activeElement !== lyricsInput) {
                 event.preventDefault();
@@ -172,7 +168,6 @@
             }
         });
 
-        // Generate video
         generateButton.addEventListener('click', generateVideo);
 
         // --- Core Functions ---
@@ -207,67 +202,65 @@
             document.querySelectorAll('.lyric-line').forEach((el, index) => {
                 el.classList.remove('current-lyric', 'next-lyric');
                 if (index === currentLyricIndex -1) {
-                    el.classList.add('current-lyric'); // The one just tapped
+                    el.classList.add('current-lyric');
                 }
                 if (index === currentLyricIndex) {
-                    el.classList.add('next-lyric'); // The next one to tap
+                    el.classList.add('next-lyric');
                     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
         }
 
-        // NEW: Function to draw wrapped and justified text
-        function drawJustifiedText(ctx, text, x, y, maxWidth, lineHeight, opacity) {
-            ctx.save();
-            ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+        function calculateWordLayout(ctx, text, x, y, maxWidth, lineHeight) {
             ctx.font = `40px Inter`;
-            
             const words = text.split(' ');
             let line = '';
             let lines = [];
 
-            // 1. Break text into lines
             for (let n = 0; n < words.length; n++) {
                 const testLine = line + words[n] + ' ';
-                const metrics = ctx.measureText(testLine);
-                const testWidth = metrics.width;
+                const testWidth = ctx.measureText(testLine).width;
                 if (testWidth > maxWidth && n > 0) {
-                    lines.push(line);
+                    lines.push(line.trim());
                     line = words[n] + ' ';
                 } else {
                     line = testLine;
                 }
             }
-            lines.push(line);
+            lines.push(line.trim());
 
-            // 2. Draw each line justified
+            const wordPositions = [];
             const totalHeight = lines.length * lineHeight;
             let currentY = y - totalHeight / 2 + lineHeight / 2;
 
             for (let i = 0; i < lines.length; i++) {
-                const lineWords = lines[i].trim().split(' ');
-                const wordsWidth = ctx.measureText(lineWords.join('')).width;
-                const totalSpaces = lineWords.length - 1;
+                const lineWords = lines[i].split(' ');
                 
-                // Don't justify the last line
-                if (i === lines.length - 1 || totalSpaces <= 0) {
-                     ctx.textAlign = 'center';
-                     ctx.fillText(lines[i], x, currentY);
+                if (i === lines.length - 1) {
+                    const lineText = lineWords.join(' ');
+                    const lineWidth = ctx.measureText(lineText).width;
+                    let currentX = x - lineWidth / 2;
+                    ctx.textAlign = 'left';
+                    for (const word of lineWords) {
+                        wordPositions.push({ text: word, x: currentX, y: currentY });
+                        currentX += ctx.measureText(word + ' ').width;
+                    }
                 } else {
-                    const spaceWidth = (maxWidth - wordsWidth) / totalSpaces;
+                    const wordsWidth = ctx.measureText(lineWords.join('')).width;
+                    const totalSpaces = lineWords.length - 1;
+                    const spaceWidth = totalSpaces > 0 ? (maxWidth - wordsWidth) / totalSpaces : 0;
                     let currentX = x - maxWidth / 2;
                     ctx.textAlign = 'left';
-                    for (let j = 0; j < lineWords.length; j++) {
-                        ctx.fillText(lineWords[j], currentX, currentY);
-                        currentX += ctx.measureText(lineWords[j]).width + spaceWidth;
+                    for (const word of lineWords) {
+                        wordPositions.push({ text: word, x: currentX, y: currentY });
+                        currentX += ctx.measureText(word).width + spaceWidth;
                     }
                 }
                 currentY += lineHeight;
             }
-            ctx.restore();
+            return wordPositions;
         }
 
-        // UPDATED: generateVideo function for new aesthetic
         function generateVideo() {
             if (timedLyrics.length === 0) {
                 alert("Please sync the lyrics before generating the video.");
@@ -294,7 +287,10 @@
                 name: "lyric-video"
             });
 
-            let activeAnimations = [];
+            let currentLyricWords = [];
+            let currentLyricId = -1;
+            const wordRevealDuration = 0.1; // Each word appears over 0.1 seconds
+
             const totalFrames = Math.floor(duration * framerate);
             let currentFrame = 0;
 
@@ -316,27 +312,45 @@
                 progressBar.style.width = `${progress}%`;
                 progressText.textContent = `Rendering... ${Math.round(progress)}%`;
 
-                // --- Drawing logic ---
-                ctx.fillStyle = '#FFFFFF'; // White background
+                ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                timedLyrics.forEach((lyric, index) => {
-                    const nextLyricTime = (index + 1 < timedLyrics.length) ? timedLyrics[index + 1].time : duration;
-                    if (currentTime >= lyric.time && currentTime < nextLyricTime) {
-                        if (!activeAnimations.find(anim => anim.id === index)) {
-                            const animation = createLyricAnimation(lyric.text, index, duration);
-                            activeAnimations.push(animation);
+                // Find the current lyric
+                let activeLyric = null;
+                let activeLyricId = -1;
+                for (let i = 0; i < timedLyrics.length; i++) {
+                    const nextLyricTime = (i + 1 < timedLyrics.length) ? timedLyrics[i + 1].time : duration;
+                    if (currentTime >= timedLyrics[i].time && currentTime < nextLyricTime) {
+                        activeLyric = timedLyrics[i];
+                        activeLyricId = i;
+                        break;
+                    }
+                }
+
+                // If the lyric line has changed, calculate the new layout
+                if (activeLyric && activeLyricId !== currentLyricId) {
+                    currentLyricId = activeLyricId;
+                    currentLyricWords = calculateWordLayout(ctx, activeLyric.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50);
+                }
+                
+                // If there is an active lyric, draw its words
+                if (activeLyric) {
+                    const timeIntoLyric = currentTime - activeLyric.time;
+                    const wordsToShow = Math.floor(timeIntoLyric / wordRevealDuration);
+
+                    for (let i = 0; i < currentLyricWords.length; i++) {
+                        if (i < wordsToShow) {
+                            const word = currentLyricWords[i];
+                            ctx.save();
+                            ctx.fillStyle = `rgba(0, 0, 0, 1)`;
+                            ctx.font = `40px Inter`;
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(word.text, word.x, word.y);
+                            ctx.restore();
                         }
                     }
-                });
-
-                activeAnimations.forEach(anim => {
-                    // Call the new justified text function
-                    drawJustifiedText(ctx, anim.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50, anim.opacity);
-                });
-                
-                activeAnimations = activeAnimations.filter(anim => !anim.completed);
-                // --- End of drawing logic ---
+                }
 
                 capturer.capture(canvas);
 
@@ -345,43 +359,6 @@
             }
             
             renderFrame();
-        }
-
-        // UPDATED: createLyricAnimation for simple fade
-        function createLyricAnimation(text, id, totalDuration) {
-             const anim = {
-                id: id,
-                text: text,
-                opacity: 0,
-                completed: false,
-            };
-
-            // Animate In
-            anime({
-                targets: anim,
-                opacity: [0, 1],
-                duration: 500,
-                easing: 'linear'
-            });
-
-            // Animate Out
-            const nextLyric = timedLyrics.find(l => l.time > timedLyrics[id].time);
-            const durationOnScreen = (nextLyric ? nextLyric.time : totalDuration) - timedLyrics[id].time;
-            const fadeOutDelay = Math.max(0, (durationOnScreen * 1000) - 500);
-
-            setTimeout(() => {
-                anime({
-                    targets: anim,
-                    opacity: 0,
-                    duration: 500,
-                    easing: 'linear',
-                    complete: () => {
-                        anim.completed = true;
-                    }
-                });
-            }, fadeOutDelay);
-
-            return anim;
         }
         
         // Initial setup
