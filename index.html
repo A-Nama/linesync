@@ -113,7 +113,6 @@
         let lyrics = [];
         let timedLyrics = [];
         let currentLyricIndex = 0;
-        let animationFrameId;
 
         // --- Event Listeners ---
 
@@ -216,49 +215,72 @@
             });
         }
 
+        // UPDATED: generateVideo function is now more robust
         function generateVideo() {
             if (timedLyrics.length === 0) {
                 alert("Please sync the lyrics before generating the video.");
                 return;
             }
+            const duration = audioPlayer.duration;
+            if (!duration || duration === Infinity) {
+                alert("Audio duration not available. Please make sure the audio file is fully loaded and has played for a second.");
+                return;
+            }
+
+            // Ensure audio is paused so it doesn't play out loud during render
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
 
             progressContainer.classList.remove('hidden');
             progressText.textContent = "Starting video generation...";
-            
+
+            const framerate = 30;
             const capturer = new CCapture({
-                format: 'webm', // Corrected format
-                framerate: 30,
+                format: 'webm',
+                framerate: framerate,
                 verbose: false,
                 quality: 90,
-                name: "lyric-video" // CCapture adds the extension automatically
+                name: "lyric-video"
             });
 
             let activeAnimations = [];
+            const totalFrames = Math.floor(duration * framerate);
+            let currentFrame = 0;
 
-            function render() {
-                // Update progress
-                const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            capturer.start();
+
+            function renderFrame() {
+                if (currentFrame >= totalFrames) {
+                    progressText.textContent = "Finalizing video... this may take a moment.";
+                    capturer.stop();
+                    capturer.save();
+                    progressContainer.classList.add('hidden');
+                    progressText.textContent = "";
+                    audioPlayer.currentTime = 0;
+                    return;
+                }
+
+                const currentTime = currentFrame / framerate;
+                
+                // Update progress bar based on frames, not audio time
+                const progress = (currentFrame / totalFrames) * 100;
                 progressBar.style.width = `${progress}%`;
                 progressText.textContent = `Rendering... ${Math.round(progress)}%`;
 
-                // Clear canvas
-                ctx.fillStyle = '#111827'; // bg-gray-900
+                // --- Drawing logic ---
+                ctx.fillStyle = '#111827';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Check which lyrics to display
                 timedLyrics.forEach((lyric, index) => {
-                    const nextLyricTime = (index + 1 < timedLyrics.length) ? timedLyrics[index + 1].time : audioPlayer.duration;
-                    
-                    if (audioPlayer.currentTime >= lyric.time && audioPlayer.currentTime < nextLyricTime) {
-                        // Check if this lyric is already being animated
+                    const nextLyricTime = (index + 1 < timedLyrics.length) ? timedLyrics[index + 1].time : duration;
+                    if (currentTime >= lyric.time && currentTime < nextLyricTime) {
                         if (!activeAnimations.find(anim => anim.id === index)) {
-                            const animation = createLyricAnimation(lyric.text, index);
+                            const animation = createLyricAnimation(lyric.text, index, duration);
                             activeAnimations.push(animation);
                         }
                     }
                 });
 
-                // Draw active animations
                 activeAnimations.forEach(anim => {
                     ctx.save();
                     ctx.fillStyle = `rgba(255, 255, 255, ${anim.opacity})`;
@@ -269,32 +291,20 @@
                     ctx.restore();
                 });
                 
-                // Remove completed animations
                 activeAnimations = activeAnimations.filter(anim => !anim.completed);
+                // --- End of drawing logic ---
 
                 capturer.capture(canvas);
 
-                if (audioPlayer.paused || audioPlayer.ended) {
-                    cancelAnimationFrame(animationFrameId);
-                    progressText.textContent = "Finalizing video... this may take a moment.";
-                    capturer.stop();
-                    capturer.save();
-                    progressContainer.classList.add('hidden');
-                    progressText.textContent = "";
-                    return;
-                }
-                
-                animationFrameId = requestAnimationFrame(render);
+                currentFrame++;
+                requestAnimationFrame(renderFrame);
             }
-
-            // Start the process
-            audioPlayer.currentTime = 0;
-            audioPlayer.play();
-            capturer.start();
-            animationFrameId = requestAnimationFrame(render);
+            
+            renderFrame();
         }
 
-        function createLyricAnimation(text, id) {
+        // UPDATED: createLyricAnimation now takes totalDuration
+        function createLyricAnimation(text, id, totalDuration) {
              const anim = {
                 id: id,
                 text: text,
@@ -317,7 +327,10 @@
 
             // Animate Out
             const nextLyric = timedLyrics.find(l => l.time > timedLyrics[id].time);
-            const durationOnScreen = (nextLyric ? nextLyric.time : audioPlayer.duration) - timedLyrics[id].time;
+            const durationOnScreen = (nextLyric ? nextLyric.time : totalDuration) - timedLyrics[id].time;
+
+            // Ensure the timeout doesn't become negative if lyrics are very close
+            const fadeOutDelay = Math.max(0, (durationOnScreen * 1000) - 500);
 
             setTimeout(() => {
                 anime({
@@ -330,7 +343,7 @@
                         anim.completed = true;
                     }
                 });
-            }, (durationOnScreen * 1000) - 500); // Start fade out 500ms before next lyric
+            }, fadeOutDelay);
 
             return anim;
         }
