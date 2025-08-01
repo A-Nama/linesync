@@ -4,13 +4,13 @@
 this isn't just some code. it's a whole mood. it's for when you have something to say and you want it to hit just right. basically, it's a tool to create those clean, minimalistic, word-by-word kinetic typography videos for your favorite songs. all in your browser.
 
 ### the tea 🍵
-so, here's the origin story. i was having a moment, feeling like a total bapsae (뱁새). like, everyone thinks you're doing nothing, but you're out here legs about to snap from trying to keep up. major "they call me a try-hard" energy.
+so, here's the origin story. i was having a moment, feeling like a total bapsae (뱁새). like, everyone thinks you're doing nothing, but you're out here legs about to snap from trying to keep up. major bapsae energy.
 
 i wanted to post the english translation of BTS's "Baepsae" (Silver Spoon) to capture that exact feeling. i looked for a good lyric video, but the vibe was just... off. none of them hit right.
 
-and in a moment of pure "fine, i'll do it myself" energy, i decided to just... build the tool to make the video. in like, a few hours.
+and in a moment of pure "fine, i'll do it myself" energy, i decided to just... build the tool to make the video easily. in like, a few hours.
 
-so, ```linesync``` was born. out of spite, passion, and a deep-seated need for the aesthetics to match the lyrics.
+so, ```linesync``` was born. out of spite, passion, and a deep-seated need for the aesthetics to match the lyrics. (even without video editing skills)
 ---------------------------
 ### how to use it
 it's dead simple, fr.
