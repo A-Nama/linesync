@@ -11,7 +11,7 @@ i wanted to post the english translation of BTS's "Baepsae" (Silver Spoon) to ca
 and in a moment of pure "fine, i'll do it myself" energy, i decided to just... build the tool to make the video. in like, a few hours.
 
 so, ```linesync``` was born. out of spite, passion, and a deep-seated need for the aesthetics to match the lyrics.
-
+---------------------------
 ### how to use it
 it's dead simple, fr.
 
