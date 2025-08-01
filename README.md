@@ -33,5 +33,6 @@ this whole thing is built on pure, unadulterated, client-side vibes. no servers,
 
 ### glow up soon?
 idk, maybe. this was a "coded it in a few hours" kind of project. but who knows? if the vibes are right, maybe we'll add more features. for now, it does what it needs to do.
+
 ------------------------------------
 ```made with 🖤 by Aisha Nama ```
