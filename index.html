@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Typography Video Generator</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Anime.js for animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    
+    <!-- CCapture.js and its dependencies for video rendering -->
+    <script src="https://unpkg.com/ccapture.js@1.1.0/build/CCapture.all.min.js"></script>
+
+    <style>
+        /* Custom styles for better UI feedback */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .lyric-line {
+            transition: all 0.2s ease-in-out;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .current-lyric {
+            background-color: #fde047; /* yellow-300 */
+        }
+        .next-lyric {
+            background-color: #a7f3d0; /* emerald-200 */
+        }
+        #videoCanvas {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-8 max-w-5xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Kinetic Typography Generator</h1>
+            <p class="text-lg text-gray-600 mt-2">Create animated lyric videos right in your browser.</p>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Left Column: Controls -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <!-- Step 1: Audio -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 1: Upload Audio</h2>
+                    <input type="file" id="audioFileInput" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    <audio id="audioPlayer" controls class="w-full mt-4"></audio>
+                </div>
+
+                <!-- Step 2: Lyrics -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 2: Add Lyrics</h2>
+                    <p class="text-sm text-gray-500 mb-2">Enter one lyric line per row.</p>
+                    <div id="lyricsDisplay" class="h-48 overflow-y-auto bg-gray-50 p-3 rounded-md border"></div>
+                    <textarea id="lyricsInput" class="w-full h-48 p-3 bg-gray-50 rounded-md border mt-2 hidden" placeholder="Paste lyrics here..."></textarea>
+                </div>
+
+                <!-- Step 3: Sync -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 3: Sync Lyrics</h2>
+                    <p class="text-sm text-gray-500 mb-2">Play the music and tap the button (or press Spacebar) on each beat.</p>
+                    <button id="tapButton" class="w-full bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
+                        Tap for Next Lyric
+                    </button>
+                     <button id="resetButton" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg mt-2 text-sm">Reset Timings</button>
+                </div>
+
+                <!-- Step 4: Generate -->
+                <div>
+                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 4: Generate Video</h2>
+                    <button id="generateButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
+                        Generate Video
+                    </button>
+                    <div id="progressContainer" class="w-full bg-gray-200 rounded-full h-2.5 mt-4 hidden">
+                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" class="text-center text-sm text-gray-600 mt-2"></p>
+                </div>
+            </div>
+
+            <!-- Right Column: Canvas Preview -->
+            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-center">
+                <canvas id="videoCanvas" width="640" height="360" class="bg-gray-900 rounded-lg w-full h-auto"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Element References
+        const audioFileInput = document.getElementById('audioFileInput');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const lyricsInput = document.getElementById('lyricsInput');
+        const lyricsDisplay = document.getElementById('lyricsDisplay');
+        const tapButton = document.getElementById('tapButton');
+        const resetButton = document.getElementById('resetButton');
+        const generateButton = document.getElementById('generateButton');
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+
+        // State
+        let lyrics = [];
+        let timedLyrics = [];
+        let currentLyricIndex = 0;
+        let animationFrameId;
+
+        // --- Event Listeners ---
+
+        // Load Audio File
+        audioFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                audioPlayer.src = url;
+            }
+        });
+
+        // Use a div for display and a hidden textarea for input
+        lyricsDisplay.addEventListener('click', () => {
+            lyricsDisplay.classList.add('hidden');
+            lyricsInput.classList.remove('hidden');
+            lyricsInput.focus();
+        });
+
+        lyricsInput.addEventListener('blur', () => {
+            lyricsDisplay.classList.remove('hidden');
+            lyricsInput.classList.add('hidden');
+            updateLyrics();
+        });
+        
+        lyricsInput.addEventListener('input', updateLyrics);
+
+        function updateLyrics() {
+            const lyricText = lyricsInput.value;
+            lyrics = lyricText.split('\n').filter(line => line.trim() !== '');
+            renderLyricsDisplay();
+            resetTimings();
+        }
+
+        function renderLyricsDisplay() {
+            lyricsDisplay.innerHTML = '';
+            lyrics.forEach((line, index) => {
+                const p = document.createElement('p');
+                p.textContent = line;
+                p.classList.add('lyric-line');
+                p.id = `lyric-line-${index}`;
+                lyricsDisplay.appendChild(p);
+            });
+            updateLyricHighlights();
+        }
+
+        // Tap to sync lyrics
+        tapButton.addEventListener('click', tap);
+        resetButton.addEventListener('click', resetTimings);
+
+        // Allow using spacebar to tap
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && document.activeElement !== lyricsInput) {
+                event.preventDefault();
+                tap();
+            }
+        });
+
+        // Generate video
+        generateButton.addEventListener('click', generateVideo);
+
+        // --- Core Functions ---
+
+        function resetTimings() {
+            timedLyrics = [];
+            currentLyricIndex = 0;
+            updateLyricHighlights();
+            console.log("Timings have been reset.");
+        }
+
+        function tap() {
+            if (currentLyricIndex >= lyrics.length) {
+                console.log("All lyrics have been timed.");
+                return;
+            }
+
+            const time = audioPlayer.currentTime;
+            if (time === 0 && audioPlayer.paused) {
+                alert("Please play the audio before you start tapping.");
+                return;
+            }
+
+            timedLyrics.push({ text: lyrics[currentLyricIndex], time });
+            console.log(`Timed: "${lyrics[currentLyricIndex]}" at ${time.toFixed(2)}s`);
+            
+            currentLyricIndex++;
+            updateLyricHighlights();
+        }
+
+        function updateLyricHighlights() {
+            document.querySelectorAll('.lyric-line').forEach((el, index) => {
+                el.classList.remove('current-lyric', 'next-lyric');
+                if (index === currentLyricIndex -1) {
+                    el.classList.add('current-lyric'); // The one just tapped
+                }
+                if (index === currentLyricIndex) {
+                    el.classList.add('next-lyric'); // The next one to tap
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+
+        function generateVideo() {
+            if (timedLyrics.length === 0) {
+                alert("Please sync the lyrics before generating the video.");
+                return;
+            }
+
+            progressContainer.classList.remove('hidden');
+            progressText.textContent = "Starting video generation...";
+            
+            const capturer = new CCapture({
+                format: 'webm', // Corrected format
+                framerate: 30,
+                verbose: false,
+                quality: 90,
+                name: "lyric-video" // CCapture adds the extension automatically
+            });
+
+            let activeAnimations = [];
+
+            function render() {
+                // Update progress
+                const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `Rendering... ${Math.round(progress)}%`;
+
+                // Clear canvas
+                ctx.fillStyle = '#111827'; // bg-gray-900
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Check which lyrics to display
+                timedLyrics.forEach((lyric, index) => {
+                    const nextLyricTime = (index + 1 < timedLyrics.length) ? timedLyrics[index + 1].time : audioPlayer.duration;
+                    
+                    if (audioPlayer.currentTime >= lyric.time && audioPlayer.currentTime < nextLyricTime) {
+                        // Check if this lyric is already being animated
+                        if (!activeAnimations.find(anim => anim.id === index)) {
+                            const animation = createLyricAnimation(lyric.text, index);
+                            activeAnimations.push(animation);
+                        }
+                    }
+                });
+
+                // Draw active animations
+                activeAnimations.forEach(anim => {
+                    ctx.save();
+                    ctx.fillStyle = `rgba(255, 255, 255, ${anim.opacity})`;
+                    ctx.font = `${anim.fontSize}px Inter`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(anim.text, anim.x, anim.y);
+                    ctx.restore();
+                });
+                
+                // Remove completed animations
+                activeAnimations = activeAnimations.filter(anim => !anim.completed);
+
+                capturer.capture(canvas);
+
+                if (audioPlayer.paused || audioPlayer.ended) {
+                    cancelAnimationFrame(animationFrameId);
+                    progressText.textContent = "Finalizing video... this may take a moment.";
+                    capturer.stop();
+                    capturer.save();
+                    progressContainer.classList.add('hidden');
+                    progressText.textContent = "";
+                    return;
+                }
+                
+                animationFrameId = requestAnimationFrame(render);
+            }
+
+            // Start the process
+            audioPlayer.currentTime = 0;
+            audioPlayer.play();
+            capturer.start();
+            animationFrameId = requestAnimationFrame(render);
+        }
+
+        function createLyricAnimation(text, id) {
+             const anim = {
+                id: id,
+                text: text,
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                opacity: 0,
+                fontSize: 40,
+                completed: false,
+            };
+
+            // Animate In
+            anime({
+                targets: anim,
+                opacity: [0, 1],
+                y: [canvas.height / 2 + 20, canvas.height / 2],
+                fontSize: [35, 40],
+                duration: 500,
+                easing: 'easeOutExpo'
+            });
+
+            // Animate Out
+            const nextLyric = timedLyrics.find(l => l.time > timedLyrics[id].time);
+            const durationOnScreen = (nextLyric ? nextLyric.time : audioPlayer.duration) - timedLyrics[id].time;
+
+            setTimeout(() => {
+                anime({
+                    targets: anim,
+                    opacity: 0,
+                    y: canvas.height / 2 - 20,
+                    duration: 500,
+                    easing: 'easeInExpo',
+                    complete: () => {
+                        anim.completed = true;
+                    }
+                });
+            }, (durationOnScreen * 1000) - 500); // Start fade out 500ms before next lyric
+
+            return anim;
+        }
+        
+        // Initial setup
+        updateLyrics();
+
+    </script>
+</body>
+</html>
