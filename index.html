@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kinetic Typography Video Generator</title>
+    <title>linesync</title>
     
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -32,6 +32,7 @@
         }
         #videoCanvas {
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            aspect-ratio: 1 / 1;
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,7 +43,7 @@
 
     <div class="container mx-auto p-4 sm:p-8 max-w-5xl">
         <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-900">Kinetic Typography Generator</h1>
+            <h1 class="text-4xl font-bold text-gray-900">linesync</h1>
             <p class="text-lg text-gray-600 mt-2">Create animated lyric videos right in your browser.</p>
         </header>
 
@@ -89,7 +90,7 @@
 
             <!-- Right Column: Canvas Preview -->
             <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-center">
-                <canvas id="videoCanvas" width="640" height="360" class="bg-gray-900 rounded-lg w-full h-auto"></canvas>
+                <canvas id="videoCanvas" width="600" height="600" class="bg-white rounded-lg w-full"></canvas>
             </div>
         </main>
     </div>
@@ -215,7 +216,58 @@
             });
         }
 
-        // UPDATED: generateVideo function is now more robust
+        // NEW: Function to draw wrapped and justified text
+        function drawJustifiedText(ctx, text, x, y, maxWidth, lineHeight, opacity) {
+            ctx.save();
+            ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+            ctx.font = `40px Inter`;
+            
+            const words = text.split(' ');
+            let line = '';
+            let lines = [];
+
+            // 1. Break text into lines
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // 2. Draw each line justified
+            const totalHeight = lines.length * lineHeight;
+            let currentY = y - totalHeight / 2 + lineHeight / 2;
+
+            for (let i = 0; i < lines.length; i++) {
+                const lineWords = lines[i].trim().split(' ');
+                const wordsWidth = ctx.measureText(lineWords.join('')).width;
+                const totalSpaces = lineWords.length - 1;
+                
+                // Don't justify the last line
+                if (i === lines.length - 1 || totalSpaces <= 0) {
+                     ctx.textAlign = 'center';
+                     ctx.fillText(lines[i], x, currentY);
+                } else {
+                    const spaceWidth = (maxWidth - wordsWidth) / totalSpaces;
+                    let currentX = x - maxWidth / 2;
+                    ctx.textAlign = 'left';
+                    for (let j = 0; j < lineWords.length; j++) {
+                        ctx.fillText(lineWords[j], currentX, currentY);
+                        currentX += ctx.measureText(lineWords[j]).width + spaceWidth;
+                    }
+                }
+                currentY += lineHeight;
+            }
+            ctx.restore();
+        }
+
+        // UPDATED: generateVideo function for new aesthetic
         function generateVideo() {
             if (timedLyrics.length === 0) {
                 alert("Please sync the lyrics before generating the video.");
@@ -227,7 +279,6 @@
                 return;
             }
 
-            // Ensure audio is paused so it doesn't play out loud during render
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
 
@@ -261,14 +312,12 @@
                 }
 
                 const currentTime = currentFrame / framerate;
-                
-                // Update progress bar based on frames, not audio time
                 const progress = (currentFrame / totalFrames) * 100;
                 progressBar.style.width = `${progress}%`;
                 progressText.textContent = `Rendering... ${Math.round(progress)}%`;
 
                 // --- Drawing logic ---
-                ctx.fillStyle = '#111827';
+                ctx.fillStyle = '#FFFFFF'; // White background
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 timedLyrics.forEach((lyric, index) => {
@@ -282,13 +331,8 @@
                 });
 
                 activeAnimations.forEach(anim => {
-                    ctx.save();
-                    ctx.fillStyle = `rgba(255, 255, 255, ${anim.opacity})`;
-                    ctx.font = `${anim.fontSize}px Inter`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(anim.text, anim.x, anim.y);
-                    ctx.restore();
+                    // Call the new justified text function
+                    drawJustifiedText(ctx, anim.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50, anim.opacity);
                 });
                 
                 activeAnimations = activeAnimations.filter(anim => !anim.completed);
@@ -303,15 +347,12 @@
             renderFrame();
         }
 
-        // UPDATED: createLyricAnimation now takes totalDuration
+        // UPDATED: createLyricAnimation for simple fade
         function createLyricAnimation(text, id, totalDuration) {
              const anim = {
                 id: id,
                 text: text,
-                x: canvas.width / 2,
-                y: canvas.height / 2,
                 opacity: 0,
-                fontSize: 40,
                 completed: false,
             };
 
@@ -319,26 +360,21 @@
             anime({
                 targets: anim,
                 opacity: [0, 1],
-                y: [canvas.height / 2 + 20, canvas.height / 2],
-                fontSize: [35, 40],
                 duration: 500,
-                easing: 'easeOutExpo'
+                easing: 'linear'
             });
 
             // Animate Out
             const nextLyric = timedLyrics.find(l => l.time > timedLyrics[id].time);
             const durationOnScreen = (nextLyric ? nextLyric.time : totalDuration) - timedLyrics[id].time;
-
-            // Ensure the timeout doesn't become negative if lyrics are very close
             const fadeOutDelay = Math.max(0, (durationOnScreen * 1000) - 500);
 
             setTimeout(() => {
                 anime({
                     targets: anim,
                     opacity: 0,
-                    y: canvas.height / 2 - 20,
                     duration: 500,
-                    easing: 'easeInExpo',
+                    easing: 'linear',
                     complete: () => {
                         anim.completed = true;
                     }
