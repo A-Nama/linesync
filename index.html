@@ -114,6 +114,8 @@
         let lyrics = [];
         let timedLyrics = [];
         let currentLyricIndex = 0;
+        let audioBuffer = null;
+        let detectedBeats = [];
 
         // --- Event Listeners ---
 
@@ -122,6 +124,31 @@
             if (file) {
                 const url = URL.createObjectURL(file);
                 audioPlayer.src = url;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    progressText.textContent = "Analyzing audio for beats...";
+                    progressContainer.classList.remove('hidden');
+                    progressBar.style.width = '25%';
+                    try {
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        audioBuffer = await audioContext.decodeAudioData(e.target.result);
+                        progressBar.style.width = '50%';
+                        detectedBeats = await detectBeats(audioBuffer);
+                        progressBar.style.width = '100%';
+                        progressText.textContent = `Beat analysis complete! Found ${detectedBeats.length} beats.`;
+                    } catch (err) {
+                        progressText.textContent = "Error analyzing audio file.";
+                        console.error(err);
+                    }
+                    
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        progressText.textContent = "";
+                        progressBar.style.width = '0%';
+                    }, 4000);
+                };
+                reader.readAsArrayBuffer(file);
             }
         });
 
@@ -210,6 +237,46 @@
                 }
             });
         }
+        
+        async function detectBeats(buffer) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const offlineContext = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
+            const source = offlineContext.createBufferSource();
+            source.buffer = buffer;
+
+            const filter = offlineContext.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+            filter.Q.value = 1;
+
+            source.connect(filter);
+            filter.connect(offlineContext.destination);
+            source.start(0);
+
+            const renderedBuffer = await offlineContext.startRendering();
+            const data = renderedBuffer.getChannelData(0);
+            const beats = [];
+            const sampleRate = renderedBuffer.sampleRate;
+            
+            // This is a simplified beat detection algorithm
+            let peak = 0;
+            let trough = 0;
+            for(let i = 0; i < data.length; i++) {
+                if(data[i] > peak) peak = data[i];
+                if(data[i] < trough) trough = data[i];
+            }
+            const threshold = trough + (peak - trough) * 0.9; // 90% up from the bottom
+            
+            for (let i = 1; i < data.length - 1; i++) {
+                if (data[i] > threshold && data[i] > data[i-1] && data[i] > data[i+1]) {
+                    const time = i / sampleRate;
+                     if (beats.length === 0 || time - beats[beats.length - 1] > 0.25) { // Refractory period
+                        beats.push(time);
+                    }
+                }
+            }
+            return beats;
+        }
 
         function calculateWordLayout(ctx, text, x, y, maxWidth, lineHeight) {
             ctx.font = `40px Inter`;
@@ -287,10 +354,9 @@
                 name: "lyric-video"
             });
 
-            let currentLyricWords = [];
+            let scheduledWords = [];
             let currentLyricId = -1;
-            const wordRevealDuration = 0.1; // Each word appears over 0.1 seconds
-
+            
             const totalFrames = Math.floor(duration * framerate);
             let currentFrame = 0;
 
@@ -315,7 +381,6 @@
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Find the current lyric
                 let activeLyric = null;
                 let activeLyricId = -1;
                 for (let i = 0; i < timedLyrics.length; i++) {
@@ -327,20 +392,49 @@
                     }
                 }
 
-                // If the lyric line has changed, calculate the new layout
+                // NEW: Smart scheduling logic
                 if (activeLyric && activeLyricId !== currentLyricId) {
                     currentLyricId = activeLyricId;
-                    currentLyricWords = calculateWordLayout(ctx, activeLyric.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50);
+                    const layout = calculateWordLayout(ctx, activeLyric.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50);
+                    
+                    const lyricStartTime = activeLyric.time;
+                    const lyricEndTime = (currentLyricId + 1 < timedLyrics.length) ? timedLyrics[currentLyricId + 1].time : duration;
+                    const beatsInLyric = detectedBeats.filter(beatTime => beatTime >= lyricStartTime && beatTime < lyricEndTime);
+                    
+                    scheduledWords = [];
+                    let wordIndex = 0;
+                    
+                    if (beatsInLyric.length > 0) {
+                        let lastTime = lyricStartTime;
+                        beatsInLyric.forEach(beatTime => {
+                            const timeSlot = beatTime - lastTime;
+                            const wordsInSlot = Math.max(1, Math.round(layout.length * (timeSlot / (lyricEndTime - lyricStartTime))));
+                            
+                            for(let i = 0; i < wordsInSlot && wordIndex < layout.length; i++) {
+                                layout[wordIndex].revealTime = lastTime + (i + 1) * (timeSlot / (wordsInSlot + 1));
+                                scheduledWords.push(layout[wordIndex]);
+                                wordIndex++;
+                            }
+                            lastTime = beatTime;
+                        });
+                    }
+
+                    // Schedule remaining words if any
+                    let remainingWords = layout.slice(wordIndex);
+                    let lastRevealTime = scheduledWords.length > 0 ? scheduledWords[scheduledWords.length - 1].revealTime : lyricStartTime;
+                    let remainingTime = lyricEndTime - lastRevealTime;
+                    if (remainingWords.length > 0 && remainingTime > 0) {
+                        const interval = remainingTime / (remainingWords.length + 1);
+                        remainingWords.forEach((word, i) => {
+                            word.revealTime = lastRevealTime + (i + 1) * interval;
+                            scheduledWords.push(word);
+                        });
+                    }
                 }
                 
-                // If there is an active lyric, draw its words
                 if (activeLyric) {
-                    const timeIntoLyric = currentTime - activeLyric.time;
-                    const wordsToShow = Math.floor(timeIntoLyric / wordRevealDuration);
-
-                    for (let i = 0; i < currentLyricWords.length; i++) {
-                        if (i < wordsToShow) {
-                            const word = currentLyricWords[i];
+                    scheduledWords.forEach(word => {
+                        if (currentTime >= word.revealTime) {
                             ctx.save();
                             ctx.fillStyle = `rgba(0, 0, 0, 1)`;
                             ctx.font = `40px Inter`;
@@ -349,7 +443,7 @@
                             ctx.fillText(word.text, word.x, word.y);
                             ctx.restore();
                         }
-                    }
+                    });
                 }
 
                 capturer.capture(canvas);
