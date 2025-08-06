@@ -4,20 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>linesync</title>
-    
+    <link rel="icon" href="logo.png" type="image/png">
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Anime.js for animations -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-    
-    <!-- CCapture.js and its dependencies for video rendering -->
+    <!-- CCapture.js for video rendering -->
     <script src="https://unpkg.com/ccapture.js@1.1.0/build/CCapture.all.min.js"></script>
 
+    <!-- Google Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+
     <style>
-        /* Custom styles for better UI feedback */
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Poppins', sans-serif;
+            background-color: #F5F1E9; 
+            color: #1a1a1a;
+        }
+        .card {
+            background-color: #FFFFFF;
+            border: 1px solid #EAEAEA;
         }
         .lyric-line {
             transition: all 0.2s ease-in-out;
@@ -25,41 +32,46 @@
             border-radius: 4px;
         }
         .current-lyric {
-            background-color: #fde047; /* yellow-300 */
+            background-color: #E0E0E0; 
         }
         .next-lyric {
-            background-color: #a7f3d0; /* emerald-200 */
+            background-color: #e4aeae; 
         }
         #videoCanvas {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             aspect-ratio: 1 / 1;
+            border: 1px solid #EAEAEA;
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="antialiased">
 
     <div class="container mx-auto p-4 sm:p-8 max-w-5xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-900">linesync</h1>
-            <p class="text-lg text-gray-600 mt-2">Create animated lyric videos right in your browser.</p>
+        <header class="text-center mb-10">
+            <h1 class="text-5xl font-bold text-gray-900">linesync</h1>
+            <p class="text-lg text-gray-500 mt-2">Create minimalist lyric videos.</p>
         </header>
 
         <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <!-- Left Column: Controls -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="card p-6 rounded-xl">
                 <!-- Step 1: Audio -->
                 <div class="mb-6">
-                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 1: Upload Audio</h2>
-                    <input type="file" id="audioFileInput" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    <h2 class="text-2xl font-bold mb-3 border-b pb-2">Step 1: Audio</h2>
+                    <input type="file" id="audioFileInput" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100"/>
                     <audio id="audioPlayer" controls class="w-full mt-4"></audio>
                 </div>
 
                 <!-- Step 2: Lyrics -->
                 <div class="mb-6">
-                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 2: Add Lyrics</h2>
+                    <h2 class="text-2xl font-bold mb-3 border-b pb-2">Step 2: Lyrics</h2>
                     <p class="text-sm text-gray-500 mb-2">Enter one lyric line per row.</p>
                     <div id="lyricsDisplay" class="h-48 overflow-y-auto bg-gray-50 p-3 rounded-md border"></div>
                     <textarea id="lyricsInput" class="w-full h-48 p-3 bg-gray-50 rounded-md border mt-2 hidden" placeholder="Paste lyrics here..."></textarea>
@@ -67,29 +79,29 @@
 
                 <!-- Step 3: Sync -->
                 <div class="mb-6">
-                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 3: Sync Lyrics</h2>
-                    <p class="text-sm text-gray-500 mb-2">Play the music and tap the button (or press Spacebar) on each beat.</p>
-                    <button id="tapButton" class="w-full bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
+                    <h2 class="text-2xl font-bold mb-3 border-b pb-2">Step 3: Sync</h2>
+                    <p class="text-sm text-gray-500 mb-2">Play the music and tap the button (or press Spacebar) for each line.</p>
+                    <button id="tapButton" class="btn w-full bg-gray-800 hover:bg-black text-white font-bold py-3 px-4 rounded-lg">
                         Tap for Next Lyric
                     </button>
-                     <button id="resetButton" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg mt-2 text-sm">Reset Timings</button>
+                     <button id="resetButton" class="btn w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg mt-2 text-sm">Reset Timings</button>
                 </div>
 
                 <!-- Step 4: Generate -->
                 <div>
-                    <h2 class="text-2xl font-semibold mb-3 border-b pb-2">Step 4: Generate Video</h2>
-                    <button id="generateButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
+                    <h2 class="text-2xl font-bold mb-3 border-b pb-2">Step 4: Generate</h2>
+                    <button id="generateButton" class="btn w-full bg-black text-white font-bold py-3 px-4 rounded-lg">
                         Generate Video
                     </button>
                     <div id="progressContainer" class="w-full bg-gray-200 rounded-full h-2.5 mt-4 hidden">
-                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        <div id="progressBar" class="bg-gray-800 h-2.5 rounded-full" style="width: 0%"></div>
                     </div>
                     <p id="progressText" class="text-center text-sm text-gray-600 mt-2"></p>
                 </div>
             </div>
 
             <!-- Right Column: Canvas Preview -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-center">
+            <div class="card p-6 rounded-xl flex items-center justify-center">
                 <canvas id="videoCanvas" width="600" height="600" class="bg-white rounded-lg w-full"></canvas>
             </div>
         </main>
@@ -114,41 +126,13 @@
         let lyrics = [];
         let timedLyrics = [];
         let currentLyricIndex = 0;
-        let audioBuffer = null;
-        let detectedBeats = [];
 
         // --- Event Listeners ---
-
         audioFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 const url = URL.createObjectURL(file);
                 audioPlayer.src = url;
-
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    progressText.textContent = "Analyzing audio for beats...";
-                    progressContainer.classList.remove('hidden');
-                    progressBar.style.width = '25%';
-                    try {
-                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        audioBuffer = await audioContext.decodeAudioData(e.target.result);
-                        progressBar.style.width = '50%';
-                        detectedBeats = await detectBeats(audioBuffer);
-                        progressBar.style.width = '100%';
-                        progressText.textContent = `Beat analysis complete! Found ${detectedBeats.length} beats.`;
-                    } catch (err) {
-                        progressText.textContent = "Error analyzing audio file.";
-                        console.error(err);
-                    }
-                    
-                    setTimeout(() => {
-                        progressContainer.classList.add('hidden');
-                        progressText.textContent = "";
-                        progressBar.style.width = '0%';
-                    }, 4000);
-                };
-                reader.readAsArrayBuffer(file);
             }
         });
 
@@ -198,19 +182,14 @@
         generateButton.addEventListener('click', generateVideo);
 
         // --- Core Functions ---
-
         function resetTimings() {
             timedLyrics = [];
             currentLyricIndex = 0;
             updateLyricHighlights();
-            console.log("Timings have been reset.");
         }
 
         function tap() {
-            if (currentLyricIndex >= lyrics.length) {
-                console.log("All lyrics have been timed.");
-                return;
-            }
+            if (currentLyricIndex >= lyrics.length) return;
 
             const time = audioPlayer.currentTime;
             if (time === 0 && audioPlayer.paused) {
@@ -219,8 +198,6 @@
             }
 
             timedLyrics.push({ text: lyrics[currentLyricIndex], time });
-            console.log(`Timed: "${lyrics[currentLyricIndex]}" at ${time.toFixed(2)}s`);
-            
             currentLyricIndex++;
             updateLyricHighlights();
         }
@@ -228,9 +205,7 @@
         function updateLyricHighlights() {
             document.querySelectorAll('.lyric-line').forEach((el, index) => {
                 el.classList.remove('current-lyric', 'next-lyric');
-                if (index === currentLyricIndex -1) {
-                    el.classList.add('current-lyric');
-                }
+                if (index === currentLyricIndex -1) el.classList.add('current-lyric');
                 if (index === currentLyricIndex) {
                     el.classList.add('next-lyric');
                     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -238,48 +213,8 @@
             });
         }
         
-        async function detectBeats(buffer) {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const offlineContext = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
-            const source = offlineContext.createBufferSource();
-            source.buffer = buffer;
-
-            const filter = offlineContext.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 200;
-            filter.Q.value = 1;
-
-            source.connect(filter);
-            filter.connect(offlineContext.destination);
-            source.start(0);
-
-            const renderedBuffer = await offlineContext.startRendering();
-            const data = renderedBuffer.getChannelData(0);
-            const beats = [];
-            const sampleRate = renderedBuffer.sampleRate;
-            
-            // This is a simplified beat detection algorithm
-            let peak = 0;
-            let trough = 0;
-            for(let i = 0; i < data.length; i++) {
-                if(data[i] > peak) peak = data[i];
-                if(data[i] < trough) trough = data[i];
-            }
-            const threshold = trough + (peak - trough) * 0.9; // 90% up from the bottom
-            
-            for (let i = 1; i < data.length - 1; i++) {
-                if (data[i] > threshold && data[i] > data[i-1] && data[i] > data[i+1]) {
-                    const time = i / sampleRate;
-                     if (beats.length === 0 || time - beats[beats.length - 1] > 0.25) { // Refractory period
-                        beats.push(time);
-                    }
-                }
-            }
-            return beats;
-        }
-
         function calculateWordLayout(ctx, text, x, y, maxWidth, lineHeight) {
-            ctx.font = `40px Inter`;
+            ctx.font = `bold 48px Poppins`;
             const words = text.split(' ');
             let line = '';
             let lines = [];
@@ -335,7 +270,7 @@
             }
             const duration = audioPlayer.duration;
             if (!duration || duration === Infinity) {
-                alert("Audio duration not available. Please make sure the audio file is fully loaded and has played for a second.");
+                alert("Audio duration not available. Please make sure the audio file is fully loaded.");
                 return;
             }
 
@@ -350,11 +285,11 @@
                 format: 'webm',
                 framerate: framerate,
                 verbose: false,
-                quality: 90,
-                name: "lyric-video"
+                quality: 99,
+                name: "linesync-video"
             });
 
-            let scheduledWords = [];
+            let currentLyricWords = [];
             let currentLyricId = -1;
             
             const totalFrames = Math.floor(duration * framerate);
@@ -364,7 +299,7 @@
 
             function renderFrame() {
                 if (currentFrame >= totalFrames) {
-                    progressText.textContent = "Finalizing video... this may take a moment.";
+                    progressText.textContent = "Finalizing video...";
                     capturer.stop();
                     capturer.save();
                     progressContainer.classList.add('hidden');
@@ -376,9 +311,9 @@
                 const currentTime = currentFrame / framerate;
                 const progress = (currentFrame / totalFrames) * 100;
                 progressBar.style.width = `${progress}%`;
-                progressText.textContent = `Rendering... ${Math.round(progress)}%`;
+                progressText.textContent = `Rendering frame ${currentFrame} of ${totalFrames}...`;
 
-                ctx.fillStyle = '#FFFFFF';
+                ctx.fillStyle = '#F5F1E9';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 let activeLyric = null;
@@ -392,58 +327,27 @@
                     }
                 }
 
-                // NEW: Smart scheduling logic
                 if (activeLyric && activeLyricId !== currentLyricId) {
                     currentLyricId = activeLyricId;
-                    const layout = calculateWordLayout(ctx, activeLyric.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, 50);
-                    
-                    const lyricStartTime = activeLyric.time;
-                    const lyricEndTime = (currentLyricId + 1 < timedLyrics.length) ? timedLyrics[currentLyricId + 1].time : duration;
-                    const beatsInLyric = detectedBeats.filter(beatTime => beatTime >= lyricStartTime && beatTime < lyricEndTime);
-                    
-                    scheduledWords = [];
-                    let wordIndex = 0;
-                    
-                    if (beatsInLyric.length > 0) {
-                        let lastTime = lyricStartTime;
-                        beatsInLyric.forEach(beatTime => {
-                            const timeSlot = beatTime - lastTime;
-                            const wordsInSlot = Math.max(1, Math.round(layout.length * (timeSlot / (lyricEndTime - lyricStartTime))));
-                            
-                            for(let i = 0; i < wordsInSlot && wordIndex < layout.length; i++) {
-                                layout[wordIndex].revealTime = lastTime + (i + 1) * (timeSlot / (wordsInSlot + 1));
-                                scheduledWords.push(layout[wordIndex]);
-                                wordIndex++;
-                            }
-                            lastTime = beatTime;
-                        });
-                    }
-
-                    // Schedule remaining words if any
-                    let remainingWords = layout.slice(wordIndex);
-                    let lastRevealTime = scheduledWords.length > 0 ? scheduledWords[scheduledWords.length - 1].revealTime : lyricStartTime;
-                    let remainingTime = lyricEndTime - lastRevealTime;
-                    if (remainingWords.length > 0 && remainingTime > 0) {
-                        const interval = remainingTime / (remainingWords.length + 1);
-                        remainingWords.forEach((word, i) => {
-                            word.revealTime = lastRevealTime + (i + 1) * interval;
-                            scheduledWords.push(word);
-                        });
-                    }
+                    currentLyricWords = calculateWordLayout(ctx, activeLyric.text, canvas.width / 2, canvas.height / 2, canvas.width * 0.85, 60);
                 }
                 
                 if (activeLyric) {
-                    scheduledWords.forEach(word => {
-                        if (currentTime >= word.revealTime) {
-                            ctx.save();
-                            ctx.fillStyle = `rgba(0, 0, 0, 1)`;
-                            ctx.font = `40px Inter`;
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(word.text, word.x, word.y);
-                            ctx.restore();
-                        }
-                    });
+                    const timeIntoLyric = currentTime - activeLyric.time;
+                    const lyricDuration = ((currentLyricId + 1 < timedLyrics.length) ? timedLyrics[currentLyricId + 1].time : duration) - activeLyric.time;
+                    const revealRate = lyricDuration / (currentLyricWords.length || 1);
+                    const wordsToShow = Math.floor(timeIntoLyric / revealRate);
+
+                    for (let i = 0; i < currentLyricWords.length && i <= wordsToShow; i++) {
+                        const word = currentLyricWords[i];
+                        ctx.save();
+                        ctx.fillStyle = `#1a1a1a`;
+                        ctx.font = `bold 48px Poppins`;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(word.text, word.x, word.y);
+                        ctx.restore();
+                    }
                 }
 
                 capturer.capture(canvas);
