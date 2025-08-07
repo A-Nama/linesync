@@ -38,7 +38,7 @@ idk, maybe. this was a "coded it in a few hours" kind of project. but who knows?
 update : hosted it cuz a friend who also struggles in editing asked me to.
 
 ### license
-
+made it open source so looking forward to different ideas!
 
 ------------------------------------
 ```made with 🖤 by Aisha Nama ```
